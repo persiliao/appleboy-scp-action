@@ -7,6 +7,7 @@ export GITHUB="true"
 GITHUB_ACTION_PATH="${GITHUB_ACTION_PATH%/}"
 DRONE_SCP_RELEASE_URL="${DRONE_SCP_RELEASE_URL:-https://github.com/appleboy/drone-scp/releases/download}"
 DRONE_SCP_VERSION="${DRONE_SCP_VERSION:-1.8.0}"
+DRONE_SCP_BINARY="${DRONE_SCP_BINARY:-/usr/local/bin/drone-scp}"
 
 function log_error() {
   echo "$1" >&2
@@ -32,18 +33,21 @@ function detect_client_info() {
 detect_client_info
 DOWNLOAD_URL_PREFIX="${DRONE_SCP_RELEASE_URL}/v${DRONE_SCP_VERSION}"
 CLIENT_BINARY="drone-scp-${DRONE_SCP_VERSION}-${CLIENT_PLATFORM}-${CLIENT_ARCH}"
-TARGET="${GITHUB_ACTION_PATH}/${CLIENT_BINARY}"
-echo "Downloading ${CLIENT_BINARY} from ${DOWNLOAD_URL_PREFIX}"
+TARGET="${DRONE_SCP_BINARY}"
 INSECURE_OPTION=""
 if [[ "${INPUT_CURL_INSECURE}" == 'true' ]]; then
   INSECURE_OPTION="--insecure"
 fi
 
-if [[ ! -x "${TARGET}" ]]; then
+# Reuse the existing binary only when it reports the requested version,
+# since the shared install path no longer encodes the version in its name.
+if [[ -x "${TARGET}" ]] && "${TARGET}" --version 2>/dev/null | grep -q "${DRONE_SCP_VERSION}"; then
+  echo "Binary ${TARGET} already exists with version ${DRONE_SCP_VERSION}, skipping download."
+else
+  echo "Downloading ${CLIENT_BINARY} from ${DOWNLOAD_URL_PREFIX}"
+  mkdir -p "$(dirname "${TARGET}")"
   curl -fsSL --retry 5 --keepalive-time 2 ${INSECURE_OPTION} "${DOWNLOAD_URL_PREFIX}/${CLIENT_BINARY}" -o "${TARGET}"
   chmod +x "${TARGET}"
-else
-  echo "Binary ${CLIENT_BINARY} already exists and is executable, skipping download."
 fi
 
 echo "======= CLI Version Information ======="
